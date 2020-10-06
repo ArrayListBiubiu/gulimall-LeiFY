@@ -1,0 +1,55 @@
+spring:
+  cloud:
+    gateway:
+      routes:
+          # 每一个路由拥有唯一id
+        - id: test_baidu_route
+          # 通过网关转发的地址
+          uri: https://www.baidu.com
+          # 断言规则：当地址URI中，key="url"，value="baidu"时，跳转到"https://www.baidu.com"
+          # 比如地址是："http://localhost:88?url=baidu"，就会跳转到"https://www.baidu.com"
+          # 比如地址是："http://localhost:88/hello?url=baidu"，就会跳转到"https://www.baidu.com/hello"
+          predicates:
+            - Query=url, baidu
+
+          # 每一个路由拥有唯一id
+        - id: test_qq_route
+          # 通过网关转发的地址
+          uri: https://www.qq.com
+          # 断言规则：当地址URI中，key="url"，value="baidu"时，跳转到"https://www.baidu.com"
+          # 比如地址是："http://localhost:88?url=qq"，就会跳转到"https://www.qq.com"
+          # 比如地址是："http://localhost:88/hello?url=qq"，就会跳转到"https://www.qq.com/hello"
+          predicates:
+            - Query=url, qq
+
+
+
+
+
+        - id: product_route
+          uri: lb://gulimall-product
+          predicates:
+            - Path=/api/product/**
+          # 路径重写
+          # http://localhost:88/api/product/category/list/tree  重写成  http://localhost:88/product/category/list/tree  相当于把 "api" 删除
+          filters:
+            - RewritePath=/api/(?<segment>.*),/$\{segment}
+
+        - id: third_party_route
+          uri: lb://gulimall-third-party
+          predicates:
+            - Path=/api/thirdparty/**
+          filters:
+            - RewritePath=/api/thirdparty/(?<segment>.*),/$\{segment}
+
+        # 这里需要调整该路由的位置，因为 Path=/api/** 会直接拦截所有带有 api 的访问
+        # 每一个路由拥有唯一id
+        - id: admin_route
+          # lb代表负载均衡，最终会转发到 renren-fast 服务
+          uri: lb://renren-fast
+          # 断言规则：只要是带有 "api" 前缀的所有路径，全部发送到 renren-fast 服务
+          predicates:
+            - Path=/api/**
+          # 路径重写
+          filters:
+            - RewritePath=/api/(?<segment>.*),/renren-fast/$\{segment}
