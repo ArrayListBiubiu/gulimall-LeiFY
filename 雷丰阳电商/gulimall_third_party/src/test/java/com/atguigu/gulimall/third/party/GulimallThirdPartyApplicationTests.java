@@ -38,8 +38,8 @@ public class GulimallThirdPartyApplicationTests {
     @Test
     public void test() throws FileNotFoundException {
         String endpoint = "oss-cn-beijing.aliyuncs.com";
-        String accessKeyId = "LTAI4GErhLbvFqsUmv2NTayz";
-        String accessKeySecret = "dIG6GN5km6CyB8NArrscECah30yZYK";
+        String accessKeyId = "accessKeyId";
+        String accessKeySecret = "accessKeySecret";
 
         // 1.创建OSSClient实例。
         OSS ossClient = new OSSClientBuilder().build(endpoint, accessKeyId, accessKeySecret);
