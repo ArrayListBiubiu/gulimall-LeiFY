@@ -19,10 +19,9 @@ public interface CategoryService extends IService<CategoryEntity> {
 
     PageUtils queryPage(Map<String, Object> params);
 
-    // 查出所有分类以及子分类，以树形结构组装起来
-    List<CategoryEntity> listWithTree();
-
     void removeMenuByIds(List<Long> asList);
+
+    Map<String, List<Catalog2Vo>> getCategoriesDb();
 
 
     /**
@@ -37,6 +36,8 @@ public interface CategoryService extends IService<CategoryEntity> {
 //    List<CategoryEntity> getLevel1Catagories();
 //
     Map<String, List<Catalog2Vo>> getCategoryMap();
+
+    List<CategoryEntity> listFromRedis();
 //
 //    Map<String, List<Catalog2Vo>> getCatalogJsonDbWithRedisLock();
 //

@@ -33,7 +33,7 @@ public class CategoryController {
     // 查出所有分类以及子分类，以树形结构组装起来
     @RequestMapping("/list/tree")
     public R list(){
-        List<CategoryEntity> entities = categoryService.listWithTree();
+        List<CategoryEntity> entities = categoryService.listFromRedis();
         return R.ok().put("data", entities);
     }
 

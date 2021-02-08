@@ -17,6 +17,7 @@ import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.lang.ref.Reference;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -43,16 +44,50 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
         return new PageUtils(page);
     }
 
+
+
+
+
+
+
+
+
+
+    /**
+     * 结合redis缓存技术，查询三级分类数据
+     */
     @Override
-    public List<CategoryEntity> listWithTree() {
+    public List<CategoryEntity> listFromRedis() {
+
+        // 1.先尝试从redis中获取
+        String listWithTree = stringRedisTemplate.opsForValue().get("listWithTree");
+
+        if(StringUtils.isEmpty(listWithTree)){
+            // 2.1.如果缓存中不存在，再从数据库中获取
+            List<CategoryEntity> categoryEntities = listFromMysql();
+            // 2.2.转化为json对象（json是跨平台兼容的语言），这样假如有其他语言的服务也在调用redis，可以直接使用
+            String s = JSON.toJSONString(categoryEntities);
+            // 2.3.放入缓存，方便下次调用
+            stringRedisTemplate.opsForValue().set("listWithTree", s);
+            return categoryEntities;
+        }
+
+        // 3.如果redis中可以直接获取，需要将json数据转换为需要的对象类型，这里转换为List
+        List<CategoryEntity> result = JSON.parseObject(listWithTree, new TypeReference<List<CategoryEntity>>() {
+        });
+        return result;
+    }
+
+    /**
+     * 查询数据库
+     */
+    public List<CategoryEntity> listFromMysql() {
         //1、查出所有分类
         List<CategoryEntity> entities = baseMapper.selectList(null);
 
         //2、组装成父子的树形结构
-
         //2.1）、找到所有的一级分类
-        List<CategoryEntity> level1Menus = entities.stream().filter(categoryEntity ->
-                categoryEntity.getParentCid() == 0
+        List<CategoryEntity> level1Menus = entities.stream().filter(categoryEntity -> categoryEntity.getParentCid() == 0
         ).map((menu) -> {
             menu.setChildren(getChildrens(menu, entities));
             return menu;
@@ -61,6 +96,15 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
         }).collect(Collectors.toList());
         return level1Menus;
     }
+
+
+
+
+
+
+
+
+
 
     @Override
     public void removeMenuByIds(List<Long> asList) {
@@ -141,7 +185,7 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
 
 
     // 从数据库中查出三级分类
-    private Map<String, List<Catalog2Vo>> getCategoriesDb() {
+    public Map<String, List<Catalog2Vo>> getCategoriesDb() {
         System.out.println("查询了数据库");
         // 优化业务逻辑，仅查询一次数据库
         List<CategoryEntity> categoryEntities = this.list();
