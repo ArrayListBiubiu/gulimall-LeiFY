@@ -2,6 +2,7 @@ package com.atguigu.gulimall.product.service;
 
 import com.atguigu.common.utils.PageUtils;
 import com.atguigu.gulimall.product.entity.CategoryEntity;
+import com.atguigu.gulimall.product.vo.Catalog2Vo;
 import com.baomidou.mybatisplus.extension.service.IService;
 
 import java.util.List;
@@ -22,5 +23,25 @@ public interface CategoryService extends IService<CategoryEntity> {
     List<CategoryEntity> listWithTree();
 
     void removeMenuByIds(List<Long> asList);
+
+
+    /**
+     * 找到该三级分类的完整路径
+     * @param categorygId
+     * @return
+     */
+//    Long[] findCatelogPathById(Long categorygId);
+//
+//    void updateCascade(CategoryEntity category);
+//
+//    List<CategoryEntity> getLevel1Catagories();
+//
+    Map<String, List<Catalog2Vo>> getCategoryMap();
+//
+//    Map<String, List<Catalog2Vo>> getCatalogJsonDbWithRedisLock();
+//
+//    Map<String, List<Catalog2Vo>> getCatalogJsonDbWithRedisson();
+//
+//    Map<String, List<Catalog2Vo>> getCatalogJsonDbWithSpringCache();
 }
 

@@ -4,6 +4,8 @@ import com.atguigu.common.utils.PageUtils;
 import com.atguigu.common.utils.R;
 import com.atguigu.gulimall.product.entity.CategoryEntity;
 import com.atguigu.gulimall.product.service.CategoryService;
+import com.atguigu.gulimall.product.service.ITestRedis;
+import com.atguigu.gulimall.product.service.impl.TestRedis;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -98,6 +100,19 @@ public class CategoryController {
 //		categoryService.removeByIds(Arrays.asList(catIds));
         categoryService.removeMenuByIds(Arrays.asList(catIds));
         return R.ok();
+    }
+
+
+
+    @Autowired
+    TestRedis testRedis;
+
+    @RequestMapping("/test/redis")
+    public String testRedis(){
+        System.out.println("11111111111111");
+        testRedis.testRedis();
+        System.out.println("22222222222222");
+        return "hello";
     }
 
 }
