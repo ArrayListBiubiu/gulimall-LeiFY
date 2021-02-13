@@ -34,6 +34,7 @@ public class CategoryController {
     @RequestMapping("/list/tree")
     public R list(){
         List<CategoryEntity> entities = categoryService.listFromRedis();
+//        List<CategoryEntity> entities = categoryService.listFromMysql();
         return R.ok().put("data", entities);
     }
 

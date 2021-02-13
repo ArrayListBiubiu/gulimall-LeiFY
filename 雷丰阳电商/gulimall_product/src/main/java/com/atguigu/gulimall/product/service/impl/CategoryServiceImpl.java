@@ -63,14 +63,18 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
         String listWithTree = stringRedisTemplate.opsForValue().get("listWithTree");
 
         if(StringUtils.isEmpty(listWithTree)){
+
+
+
+            System.out.println("缓存未命中。。。"+Thread.currentThread().getName());
+
             // 2.1.如果缓存中不存在，再从数据库中获取
             List<CategoryEntity> categoryEntities = listFromMysql();
-            // 2.2.转化为json对象（json是跨平台兼容的语言），这样假如有其他语言的服务也在调用redis，可以直接使用
-            String s = JSON.toJSONString(categoryEntities);
-            // 2.3.放入缓存，方便下次调用
-            stringRedisTemplate.opsForValue().set("listWithTree", s);
+
             return categoryEntities;
         }
+
+        System.out.println("缓存已命中。。。"+Thread.currentThread().getName());
 
         // 3.如果redis中可以直接获取，需要将json数据转换为需要的对象类型，这里转换为List
         List<CategoryEntity> result = JSON.parseObject(listWithTree, new TypeReference<List<CategoryEntity>>() {
@@ -82,19 +86,41 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
      * 查询数据库
      */
     public List<CategoryEntity> listFromMysql() {
-        //1、查出所有分类
-        List<CategoryEntity> entities = baseMapper.selectList(null);
 
-        //2、组装成父子的树形结构
-        //2.1）、找到所有的一级分类
-        List<CategoryEntity> level1Menus = entities.stream().filter(categoryEntity -> categoryEntity.getParentCid() == 0
-        ).map((menu) -> {
-            menu.setChildren(getChildrens(menu, entities));
-            return menu;
-        }).sorted((menu1, menu2) -> {
-            return (menu1.getSort() == null ? 0 : menu1.getSort()) - (menu2.getSort() == null ? 0 : menu2.getSort());
-        }).collect(Collectors.toList());
-        return level1Menus;
+        synchronized (this){
+
+
+
+            String listWithTree = stringRedisTemplate.opsForValue().get("listWithTree");
+            if(!StringUtils.isEmpty(listWithTree)){
+                List<CategoryEntity> result = JSON.parseObject(listWithTree, new TypeReference<List<CategoryEntity>>() {
+                });
+                return result;
+            }
+
+            System.out.println("查询数据库。。。"+Thread.currentThread().getName());
+
+            //1、查出所有分类
+            List<CategoryEntity> entities = baseMapper.selectList(null);
+
+            //2、组装成父子的树形结构
+            //2.1）、找到所有的一级分类
+            List<CategoryEntity> level1Menus = entities.stream().filter(categoryEntity -> categoryEntity.getParentCid() == 0).map((menu) -> {
+                menu.setChildren(getChildrens(menu, entities));
+                return menu;
+            }).sorted((menu1, menu2) -> {
+                return (menu1.getSort() == null ? 0 : menu1.getSort()) - (menu2.getSort() == null ? 0 : menu2.getSort());
+            }).collect(Collectors.toList());
+
+
+            // 将放入redis的操作与，查询数据库的操作，合并为原子操作
+            // 防止出现，将查询到的结果插入redis之前就释放synchronized锁，下个线程还傻傻的以为redis中没有数据呢
+            String s = JSON.toJSONString(level1Menus);
+            stringRedisTemplate.opsForValue().set("listWithTree", s);
+
+            return level1Menus;
+        }
+
     }
 
 

@@ -38,6 +38,8 @@ public interface CategoryService extends IService<CategoryEntity> {
     Map<String, List<Catalog2Vo>> getCategoryMap();
 
     List<CategoryEntity> listFromRedis();
+
+    List<CategoryEntity> listFromMysql();
 //
 //    Map<String, List<Catalog2Vo>> getCatalogJsonDbWithRedisLock();
 //
