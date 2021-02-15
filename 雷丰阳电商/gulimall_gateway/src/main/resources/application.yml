@@ -53,3 +53,12 @@ spring:
           # 路径重写
           filters:
             - RewritePath=/api/(?<segment>.*),/renren-fast/$\{segment}
+
+
+        # nginx + gateway 实现负载均衡
+        - id: gulimall_host_route
+          # lb代表负载均衡
+          uri: lb://gulimall-product
+          # 断言规则：只要是 gulimall.com 域名下的所有请求，全部转发给 product
+          predicates:
+            - Host=**.gulimall.com

@@ -12,14 +12,18 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.lang.ref.Reference;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 
@@ -46,7 +50,31 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
 
 
 
+    @Override
+    public List<CategoryEntity> listLocal() {
 
+        // 使用setnx指令，完成分布式锁
+        Boolean lock = stringRedisTemplate.opsForValue().setIfAbsent("lock", "hello world", 100, TimeUnit.SECONDS);
+        if (lock) {
+            // 1.1.加锁成功，执行业务
+            List<CategoryEntity> categoryEntities = listFromRedis();
+            // 1.2.获取key=lock的value值
+            String lockValue = stringRedisTemplate.opsForValue().get("lock");
+            // 1.3.lua脚本
+            String script = "if redis.call('get',KEYS[1]) == ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end";
+            // 1.4.使用lua脚本释放锁，保证（1）获取key的value值（2）释放锁，这2步是原子操作
+            stringRedisTemplate.execute(new DefaultRedisScript<Long>(script, Long.class), Arrays.asList("lock"), lockValue);
+            // 1.5.返回数据
+            return categoryEntities;
+        } else {
+            // 2.1.加锁失败，再次尝试获取锁
+            // 2.2.为了防止循环次数过多，中间休眠1秒钟
+            try { TimeUnit.SECONDS.sleep(1); } catch (Exception e) { e.printStackTrace(); }
+            return listLocal();
+        }
+
+
+    }
 
 
 
@@ -63,19 +91,12 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
         String listWithTree = stringRedisTemplate.opsForValue().get("listWithTree");
 
         if(StringUtils.isEmpty(listWithTree)){
-
-
-
             System.out.println("缓存未命中。。。"+Thread.currentThread().getName());
-
             // 2.1.如果缓存中不存在，再从数据库中获取
             List<CategoryEntity> categoryEntities = listFromMysql();
-
             return categoryEntities;
         }
-
         System.out.println("缓存已命中。。。"+Thread.currentThread().getName());
-
         // 3.如果redis中可以直接获取，需要将json数据转换为需要的对象类型，这里转换为List
         List<CategoryEntity> result = JSON.parseObject(listWithTree, new TypeReference<List<CategoryEntity>>() {
         });
