@@ -13,7 +13,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class MyRedissonConfig {
     @Bean
-    public RedissonClient redissonClient(){
+    public RedissonClient redissonClient() {
         // 1.创建配置
         Config config = new Config();
         config.useSingleServer().setAddress("redis://192.168.232.129:6379");  // 特别注意：在IP地址之前要写上协议名：redis:// 或 rediss://

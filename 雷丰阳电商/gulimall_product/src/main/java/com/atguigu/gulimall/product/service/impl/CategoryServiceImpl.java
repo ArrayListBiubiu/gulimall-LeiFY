@@ -11,6 +11,9 @@ import com.atguigu.gulimall.product.vo.Catalog2Vo;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import jdk.internal.org.objectweb.asm.tree.TryCatchBlockNode;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -23,6 +26,7 @@ import java.lang.ref.Reference;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -37,6 +41,8 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
 
+    @Autowired
+    private RedissonClient redissonClient;
 
     @Override
     public PageUtils queryPage(Map<String, Object> params) {
@@ -44,17 +50,39 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
                 new Query<CategoryEntity>().getPage(params),
                 new QueryWrapper<CategoryEntity>()
         );
-
         return new PageUtils(page);
     }
+
+
+    /**
+     * 基于 redisson 优化 listLocal() 方法，可以看到简化了很多，只需要写上加锁和解锁就可以了，底层实现交给了redisson
+     */
+    @Override
+    public List<CategoryEntity> listRedisson() {
+        // 获取一个分布式锁
+        // 注：锁名一定要保证一定的粒度，越细越好，否则很多不同通能的方法都用一个名，那么彼此之间可能都没人任何关联，却还需要互相等待
+        RLock lock = redissonClient.getLock("catalogJson-lock");
+        lock.lock();
+        List<CategoryEntity> categoryEntities = null;
+        try {
+            categoryEntities = listFromRedis();
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            lock.unlock();
+        }
+        return categoryEntities;
+    }
+
+
 
 
 
     @Override
     public List<CategoryEntity> listLocal() {
-
         // 使用setnx指令，完成分布式锁
-        Boolean lock = stringRedisTemplate.opsForValue().setIfAbsent("lock", "hello world", 100, TimeUnit.SECONDS);
+        String uuid = UUID.randomUUID().toString();
+        Boolean lock = stringRedisTemplate.opsForValue().setIfAbsent("lock", uuid, 100, TimeUnit.SECONDS);
         if (lock) {
             // 1.1.加锁成功，执行业务
             List<CategoryEntity> categoryEntities = listFromRedis();
@@ -69,34 +97,30 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
         } else {
             // 2.1.加锁失败，再次尝试获取锁
             // 2.2.为了防止循环次数过多，中间休眠1秒钟
-            try { TimeUnit.SECONDS.sleep(1); } catch (Exception e) { e.printStackTrace(); }
+            try {
+                TimeUnit.SECONDS.sleep(1);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
             return listLocal();
         }
-
-
     }
-
-
-
-
-
 
     /**
      * 结合redis缓存技术，查询三级分类数据
      */
     @Override
     public List<CategoryEntity> listFromRedis() {
-
         // 1.先尝试从redis中获取
         String listWithTree = stringRedisTemplate.opsForValue().get("listWithTree");
 
-        if(StringUtils.isEmpty(listWithTree)){
-            System.out.println("缓存未命中。。。"+Thread.currentThread().getName());
+        if (StringUtils.isEmpty(listWithTree)) {
+            System.out.println("缓存未命中。。。" + Thread.currentThread().getName());
             // 2.1.如果缓存中不存在，再从数据库中获取
             List<CategoryEntity> categoryEntities = listFromMysql();
             return categoryEntities;
         }
-        System.out.println("缓存已命中。。。"+Thread.currentThread().getName());
+        System.out.println("缓存已命中。。。" + Thread.currentThread().getName());
         // 3.如果redis中可以直接获取，需要将json数据转换为需要的对象类型，这里转换为List
         List<CategoryEntity> result = JSON.parseObject(listWithTree, new TypeReference<List<CategoryEntity>>() {
         });
@@ -107,19 +131,15 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
      * 查询数据库
      */
     public List<CategoryEntity> listFromMysql() {
-
-        synchronized (this){
-
-
-
+        synchronized (this) {
             String listWithTree = stringRedisTemplate.opsForValue().get("listWithTree");
-            if(!StringUtils.isEmpty(listWithTree)){
+            if (!StringUtils.isEmpty(listWithTree)) {
                 List<CategoryEntity> result = JSON.parseObject(listWithTree, new TypeReference<List<CategoryEntity>>() {
                 });
                 return result;
             }
 
-            System.out.println("查询数据库。。。"+Thread.currentThread().getName());
+            System.out.println("查询数据库。。。" + Thread.currentThread().getName());
 
             //1、查出所有分类
             List<CategoryEntity> entities = baseMapper.selectList(null);
@@ -141,16 +161,7 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
 
             return level1Menus;
         }
-
     }
-
-
-
-
-
-
-
-
 
 
     @Override
@@ -201,8 +212,6 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
 //        }
 //        Map<String, List<Catalog2Vo>> listMap = JSON.parseObject(catalogJson, new TypeReference<Map<String, List<Catalog2Vo>>>() {});
 //        return listMap;
-
-
 
 
         // 缓存改写3：加锁解决缓存穿透问题
@@ -267,5 +276,6 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryDao, CategoryEntity
         List<CategoryEntity> collect = categoryEntities.stream().filter(cat -> cat.getParentCid() == l).collect(Collectors.toList());
         return collect;
     }
+
 
 }
