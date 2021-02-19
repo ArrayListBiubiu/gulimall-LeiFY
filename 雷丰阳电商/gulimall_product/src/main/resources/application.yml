@@ -12,10 +12,13 @@ spring:
     nacos:
       discovery:
         server-addr: 127.0.0.1:8848
-  #redis
+  # redis
   redis:
     host: 192.168.232.129
     port: 6379
+  # 声明当前系统的缓存采用的是redis缓存
+  cache:
+    type: redis
 
 mybatis-plus:
   # 扫描所有的SQL映射文件
