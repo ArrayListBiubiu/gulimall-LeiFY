@@ -207,6 +207,7 @@ public class CategoryController {
      */
     @RequestMapping("/lockDoor")
     public String setLatch() {
+        System.out.println();
         RCountDownLatch latch = redissonClient.getCountDownLatch("CountDownLatch");
         try {
             latch.trySetCount(5); // 给一个初始值为 5
